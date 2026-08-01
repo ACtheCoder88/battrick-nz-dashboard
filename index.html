@@ -706,6 +706,29 @@ Views.toss = function (root) {
   $("#scopebox", root).append(
     el("button", { class: SCOPE === "all" ? "on" : "", onclick: () => setScope("all") }, "All NTs"),
     el("button", { class: SCOPE === "nz" ? "on" : "", onclick: () => setScope("nz") }, "NZ only"));
+
+/* presentation basis: identical analysis, numbers shown from the chosen side */
+const BASIS = (() => {
+  try { return localStorage.getItem("bt_tbasis") === "second" ? "second" : "first"; }
+  catch (e) { return "first"; }
+})();
+const B1 = BASIS === "first";
+const setBasis = v => { try { localStorage.setItem("bt_tbasis", v); } catch (e) {} route(); };
+$("#scopebox", root).parentElement.append(
+  el("span", { class: "note", style: "align-self:center" }, "Basis:"),
+  el("span", { class: "eratoggle", style: "margin-left:0" },
+    el("button", { class: B1 ? "on" : "", onclick: () => setBasis("first") }, "Bat first"),
+    el("button", { class: !B1 ? "on" : "", onclick: () => setBasis("second") }, "Bat second")));
+/* rate r is always the bat-first win rate internally; display flips it */
+const drate = r => B1 ? r : 1 - r;
+const dlo = c => B1 ? c.lo : 1 - c.hi;
+const dhi = c => B1 ? c.hi : 1 - c.lo;
+const SIDE = B1 ? "bat-first" : "bat-second";
+
+if (T && SCOPE === "all") renderAll(T.all);
+else if (T) renderNZ(T.nz);
+$("#foot", root).append(methodologyNote());
+
 function verdictBadge(v) {
   return el("span", { class: "badge " + (v === "bat" ? "squad" : ""),
                       style: v === "field" ? "background:var(--bad);color:#0f1418;font-weight:600" : "" },
@@ -715,19 +738,20 @@ function verdictBadge(v) {
 /* ---------------- All-NT scope ---------------- */
 function renderAll(A) {
   $("#intro", root).textContent =
-    `Does batting first actually win? Every decided OD international with known ` +
-    `conditions since season ${A.min_season} (new engine), all 18 national teams — ` +
-    `${fmtInt(A.innings_pairs)} matches (transitional pitches half-weighted). Rates are ` +
-    `the BAT-FIRST side's win %, shrunk toward 50%; "adj" controls for team strength ` +
-    `(season win-rate differential) because the side batting first is not random.`;
+    `Does batting ${B1 ? "first" : "second"} actually win? Every decided OD ` +
+    `international with known conditions since season ${A.min_season} (new engine), ` +
+    `all 18 national teams — ${fmtInt(A.innings_pairs)} matches (transitional pitches ` +
+    `half-weighted). Rates are the ${SIDE.toUpperCase()} side's win %, shrunk toward ` +
+    `50%; "adj" controls for team strength (season win-rate differential) because ` +
+    `the side batting first is not random.`;
 
   const o = A.overall;
   $("#tiles", root).append(...[
-    ["Bat-first win % (overall)", fmt(100 * o.bat_first_win, 1) + "%",
-     `CI ${fmt(100 * o.lo, 1)}–${fmt(100 * o.hi, 1)} · raw ${fmt(100 * o.raw, 1)}`],
+    [`${B1 ? "Bat-first" : "Bat-second"} win % (overall)`, fmt(100 * drate(o.bat_first_win), 1) + "%",
+     `CI ${fmt(100 * dlo(o), 1)}–${fmt(100 * dhi(o), 1)} · raw ${fmt(100 * drate(o.raw), 1)}`],
     ["Matches", fmtInt(A.innings_pairs)],
     ["Verdict", o.hi < 0.5 ? "CHASE by default" : o.lo > 0.5 ? "BAT by default" : "toss-up",
-     "at 90% confidence"],
+     "at 90% confidence (basis-independent)"],
   ].map(([k, v, ci]) => el("div", { class: "tile" },
     el("div", { class: "v" }, String(v)), ci ? el("span", { class: "ci" }, ci) : null,
     el("div", { class: "k" }, k))));
@@ -737,24 +761,28 @@ function renderAll(A) {
   const adjW = (A.adjusted && A.adjusted.by_weather) || {};
 
   const items = (obj, adj) => Object.entries(obj)
-    .sort((a, b) => a[1].bat_first_win - b[1].bat_first_win)
+    .sort((a, b) => drate(a[1].bat_first_win) - drate(b[1].bat_first_win))
     .map(([k, c]) => ({
-      label: k, value: 100 * c.bat_first_win, decisive: c.verdict !== "tossup",
-      sub: `CI ${fmt(100 * c.lo, 0)}–${fmt(100 * c.hi, 0)} · n=${fmtN(c.n)}` +
-           (adj[k] ? ` · adj ${fmt(100 * adj[k].prob, 0)}%` : "") +
-           ` · captains bat ${fmt(100 * (c.toss_bat_rate ?? 0), 0)}%`,
+      label: k, value: 100 * drate(c.bat_first_win), decisive: c.verdict !== "tossup",
+      sub: `CI ${fmt(100 * dlo(c), 0)}–${fmt(100 * dhi(c), 0)} · n=${fmtN(c.n)}` +
+           (adj[k] ? ` · adj ${fmt(100 * drate(adj[k].prob), 0)}%` : "") +
+           (B1 ? ` · captains bat ${fmt(100 * (c.toss_bat_rate ?? 0), 0)}%`
+               : ` · captains field ${fmt(100 - 100 * (c.toss_bat_rate ?? 0), 0)}%`),
     }));
+  const axis = B1
+    ? { axisLeft: "← field first wins", axisRight: "bat first wins →" }
+    : { axisLeft: "← bat first wins", axisRight: "bat second wins →" };
 
   C.append(el("div", { class: "chart" },
     el("h2", { style: "margin-top:0" }, "By pitch ",
-      el("small", {}, "bat-first win %, shrunk · faded = CI includes 50%")),
-    divergeBars(items(A.by_pitch, adjP))));
+      el("small", {}, `${SIDE} win %, shrunk · faded = CI includes 50%`)),
+    divergeBars(items(A.by_pitch, adjP), axis)));
   C.append(el("div", { class: "chart", style: "margin-top:.8rem" },
     el("h2", { style: "margin-top:0" }, "By weather"),
-    divergeBars(items(A.by_weather, adjW))));
+    divergeBars(items(A.by_weather, adjW), axis)));
 
   // matrix
-  C.append(el("h2", {}, "Pitch × weather ", el("small", {}, "bat-first win % · shrunk · n")));
+  C.append(el("h2", {}, "Pitch × weather ", el("small", {}, `${SIDE} win % · shrunk · n`)));
   const t = el("table", {}, el("thead", {}, el("tr", {},
     el("th", { class: "nosort" }, "Pitch \\ Weather"),
     WEATHERS.map(w => el("th", { class: "num nosort" }, w.replace("partially cloudy", "PC"))))));
@@ -766,9 +794,9 @@ function renderAll(A) {
       if (!c) return el("td", { class: "num faint" }, "–");
       const td = el("td", { class: "num" + (c.n < 25 ? " low" : "") });
       td.append(el("span", { class: "stat" },
-        el("b", { class: c.bat_first_win >= 0.5 ? "won" : "lost" },
-          fmt(100 * c.bat_first_win, 0) + "%"),
-        el("span", { class: "raw" }, `${fmt(100 * c.lo, 0)}–${fmt(100 * c.hi, 0)} · n=${fmtN(c.n)}`)));
+        el("b", { class: drate(c.bat_first_win) >= 0.5 ? "won" : "lost" },
+          fmt(100 * drate(c.bat_first_win), 0) + "%"),
+        el("span", { class: "raw" }, `${fmt(100 * dlo(c), 0)}–${fmt(100 * dhi(c), 0)} · n=${fmtN(c.n)}`)));
       return td;
     })));
   }
@@ -813,22 +841,25 @@ function renderAll(A) {
 
 /* ---------------- NZ-only scope ---------------- */
 function renderNZ(N) {
+  const ddiff = c => B1 ? c.diff : -c.diff;
   $("#intro", root).textContent =
     `NZ only, since season ${N.min_season}: NZ's win rate when batting first vs when ` +
     `chasing, per condition. Bars show the DIFFERENCE in percentage points ` +
-    `(right = batting first has been better for NZ). Both rates are shrunk toward ` +
-    `NZ's era win rate (${fmt(100 * N.nz_overall_win, 0)}%); samples are far smaller ` +
-    `than the All-NTs view — read the CIs.`;
+    `(right = batting ${B1 ? "first" : "second"} has been better for NZ). Both rates ` +
+    `are shrunk toward NZ's era win rate (${fmt(100 * N.nz_overall_win, 0)}%); samples ` +
+    `are far smaller than the All-NTs view — read the CIs.`;
 
   const o = N.overall;
   if (o) {
+    const batTile = ["NZ batting first", fmt(100 * o.win_bat, 1) + "%",
+      `CI ${fmt(100 * o.win_bat_lo, 0)}–${fmt(100 * o.win_bat_hi, 0)} · n=${fmtN(o.n_bat)}`];
+    const chaseTile = ["NZ chasing", fmt(100 * o.win_chase, 1) + "%",
+      `CI ${fmt(100 * o.win_chase_lo, 0)}–${fmt(100 * o.win_chase_hi, 0)} · n=${fmtN(o.n_chase)}`];
     $("#tiles", root).append(...[
-      ["NZ batting first", fmt(100 * o.win_bat, 1) + "%",
-       `CI ${fmt(100 * o.win_bat_lo, 0)}–${fmt(100 * o.win_bat_hi, 0)} · n=${fmtN(o.n_bat)}`],
-      ["NZ chasing", fmt(100 * o.win_chase, 1) + "%",
-       `CI ${fmt(100 * o.win_chase_lo, 0)}–${fmt(100 * o.win_chase_hi, 0)} · n=${fmtN(o.n_chase)}`],
-      ["Difference", (o.diff > 0 ? "+" : "") + fmt(100 * o.diff, 1) + "pp",
-       o.verdict === "tossup" ? "not decisive at 90%" : o.verdict.toUpperCase() + " first"],
+      ...(B1 ? [batTile, chaseTile] : [chaseTile, batTile]),
+      ["Difference", (ddiff(o) > 0 ? "+" : "") + fmt(100 * ddiff(o), 1) + "pp",
+       (B1 ? "bat-first minus chasing · " : "chasing minus bat-first · ") +
+       (o.verdict === "tossup" ? "not decisive at 90%" : o.verdict.toUpperCase() + " first")],
     ].map(([k, v, ci]) => el("div", { class: "tile" },
       el("div", { class: "v" }, String(v)), el("span", { class: "ci" }, ci),
       el("div", { class: "k" }, k))));
@@ -836,15 +867,18 @@ function renderNZ(N) {
 
   const C = $("#content", root);
   const items = obj => Object.entries(obj)
-    .sort((a, b) => a[1].diff - b[1].diff)
+    .sort((a, b) => ddiff(a[1]) - ddiff(b[1]))
     .map(([k, c]) => ({
-      label: k, value: 100 * c.diff, decisive: c.verdict !== "tossup",
+      label: k, value: 100 * ddiff(c), decisive: c.verdict !== "tossup",
       sub: `bat ${fmt(100 * c.win_bat, 0)}% (n=${fmtN(c.n_bat)}) · ` +
            `chase ${fmt(100 * c.win_chase, 0)}% (n=${fmtN(c.n_chase)})` +
            (c.toss_bat_rate != null ? ` · NZ bats ${fmt(100 * c.toss_bat_rate, 0)}% at toss` : ""),
     }));
-  const opts = { anchor: 0, span: 30, unit: "pp",
-                 axisLeft: "← chasing better for NZ", axisRight: "batting first better →" };
+  const opts = B1
+    ? { anchor: 0, span: 30, unit: "pp",
+        axisLeft: "← chasing better for NZ", axisRight: "batting first better →" }
+    : { anchor: 0, span: 30, unit: "pp",
+        axisLeft: "← batting first better for NZ", axisRight: "chasing better →" };
 
   C.append(el("div", { class: "chart" },
     el("h2", { style: "margin-top:0" }, "By pitch ",
@@ -866,8 +900,8 @@ function renderNZ(N) {
       if (!c) return el("td", { class: "num faint" }, "–");
       const td = el("td", { class: "num" + (c.verdict === "tossup" ? " low" : "") });
       td.append(el("span", { class: "stat" },
-        el("b", { class: c.diff >= 0 ? "won" : "lost" },
-          (c.diff > 0 ? "+" : "") + fmt(100 * c.diff, 0) + "pp"),
+        el("b", { class: ddiff(c) >= 0 ? "won" : "lost" },
+          (ddiff(c) > 0 ? "+" : "") + fmt(100 * ddiff(c), 0) + "pp"),
         el("span", { class: "raw" }, `n ${fmtN(c.n_bat)}/${fmtN(c.n_chase)}`)));
       return td;
     })));
@@ -898,9 +932,6 @@ function renderNZ(N) {
   C.append(v);
 }
 
-  if (T && SCOPE === "all") renderAll(T.all);
-  else if (T) renderNZ(T.nz);
-  $("#foot", root).append(methodologyNote());
 };
 
 Views.players = function (root) {
