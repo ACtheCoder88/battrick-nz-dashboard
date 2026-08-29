@@ -2054,6 +2054,8 @@ Views.records = function (root) {
 
   let nationFilter = "", highlightNZ = false;
   const nationOf = r => r.nation || "–";
+  const EMPTY = { batting: {}, bowling: {}, fielding: {}, appearances: {}, team: {}, params: {} };
+  const scope = () => (getEra() === "s56" ? R.s56 : R.all) || EMPTY;
 
   function board(title, rows, o) {
     const wrap = el("div", { class: "board" }, el("h3", {}, title));
@@ -2078,8 +2080,7 @@ Views.records = function (root) {
   }
 
   function render() {
-    const S = (getEra() === "s56" ? R.s56 : R.all) ||
-      { batting: {}, bowling: {}, fielding: {}, appearances: {}, team: {}, params: {} };
+    const S = scope();
     const P = S.params || {};
     $("#scope", root).textContent = getEra() === "s56" ? "season 56+ only" : "all seasons";
     const bq = `qualified: at least ${P.min_bat_innings} innings`;
