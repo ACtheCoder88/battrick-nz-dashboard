@@ -129,26 +129,46 @@ tr.low td:first-child { border-left: 2px solid var(--accent2); }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: .6rem .8rem; }
 .card .nm { font-weight: 600; }
 .card .sub { color: var(--muted); font-size: .78rem; margin: .15rem 0 .4rem; }
-.meter { display: grid; grid-template-columns: 4.6rem 1fr auto; align-items: center;
+/* minmax(4.6rem, auto) on the label: the squad-card meters keep their 4.6rem
+   column, while the dismissals list on a player page grows it enough to spell
+   out "caught and bowled" instead of clipping it. */
+.meter { display: grid; grid-template-columns: minmax(4.6rem, auto) minmax(0, 1fr) auto;
+  align-items: center;
   gap: .45rem; font-size: .75rem; color: var(--muted); margin-top: .18rem; }
+.meter > * { min-width: 0; }
 .meter .bar { height: 5px; background: #2c3640; border-radius: 3px; overflow: hidden; min-width: 34px; }
 .meter .bar i { display: block; height: 100%; background: var(--accent); }
-.meter .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.meter .word { text-align: right; color: var(--text); white-space: nowrap; }
+/* No ellipsis here: every label is a word or two ("caught and bowled",
+   "experience") and truncating one tells you less than wrapping it. Dropping
+   overflow:hidden also lets the auto track above size to the real text. */
+.meter .lbl { overflow-wrap: break-word; }
+.meter .word { text-align: right; color: var(--text); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
 .chart { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: .6rem; }
-.chartrow { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+/* minmax(0, 1fr) rather than 1fr: a plain 1fr track is floored at its item's
+   min-content width, so a wide table inside stretched the column and pushed the
+   whole page sideways instead of scrolling inside its own .tablewrap. The
+   matching min-width:0 lets the item itself shrink into that track. */
+.chartrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .8rem; }
+.chartrow > * { min-width: 0; }
 svg text { fill: var(--muted); font-size: 10px; }
 .spark rect.out { fill: var(--bad); }
 .spark rect.no { fill: var(--accent); }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-.hbar { display: grid; grid-template-columns: 11rem 1fr 9rem; gap: .6rem;
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+.grid2 > * { min-width: 0; }
+.hbar { display: grid; grid-template-columns: 11rem minmax(0, 1fr) 9rem; gap: .6rem;
   align-items: center; margin: .3rem 0; font-size: .82rem; }
-.hlbl { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hbar > *, .dbar > * { min-width: 0; }
+/* These two wrap rather than truncate. The label names the row — clipping
+   "hard & fast · partially cloudy and windy" down to "...and win" loses which
+   bar you are reading — and the nowrap sub-line was floored at its full
+   47-character width, which is what pushed Bat 1st/2nd off the screen. */
+.hlbl { color: var(--muted); overflow-wrap: break-word; }
 .htrack { position: relative; height: 18px; background: #202932; border-radius: 4px; overflow: hidden; }
 .htrack i { display: block; height: 100%; background: linear-gradient(90deg, #2b6f68, var(--accent)); }
 .htrack b { position: absolute; right: .45em; top: 0; line-height: 18px; font-size: .78rem; color: var(--text); }
 
-.dbar { display: grid; grid-template-columns: 11rem 1fr 12rem; gap: .6rem;
+.dbar { display: grid; grid-template-columns: 11rem minmax(0, 1fr) 12rem; gap: .6rem;
   align-items: center; margin: .3rem 0; font-size: .82rem; }
 .dbar.low .dtrack { opacity: .6; }
 .dtrack { position: relative; height: 18px; background: #202932; border-radius: 4px; overflow: hidden; }
@@ -158,13 +178,13 @@ svg text { fill: var(--muted); font-size: 10px; }
 .dtrack b { position: absolute; right: .45em; top: 0; line-height: 18px; font-size: .78rem; color: var(--text); }
 .daxis { display: flex; justify-content: space-between; color: var(--faint); font-size: .72rem; }
 @media (max-width: 640px) {
-  .dbar { grid-template-columns: 7.2rem 1fr; }
+  .dbar { grid-template-columns: 7.2rem minmax(0, 1fr); }
   .dbar .hsub { grid-column: 2; margin-top: -0.2rem; }
 }
 
-.hsub { color: var(--faint); font-size: .74rem; white-space: nowrap; }
+.hsub { color: var(--faint); font-size: .74rem; overflow-wrap: break-word; }
 @media (max-width: 640px) {
-  .hbar { grid-template-columns: 7.2rem 1fr; }
+  .hbar { grid-template-columns: 7.2rem minmax(0, 1fr); }
   .hsub { grid-column: 2; margin-top: -0.2rem; }
 }
 .footer-note { margin-top: 2.2rem; padding-top: .8rem; border-top: 1px solid var(--line);
@@ -188,8 +208,8 @@ svg text { fill: var(--muted); font-size: 10px; }
 .pill.low { border: 1px solid var(--line); background: none; color: var(--faint); }
 .pill.tag { background: none; border: 1px solid var(--line); }
 .pill.flag { background: var(--bad); color: #0f1418; }
-@media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
-@media (max-width: 800px) { .chartrow { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 800px) { .chartrow { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 640px) {
   main { padding: .7rem .6rem; }
   header.site { padding: .6rem .6rem; gap: .5rem .8rem; }
