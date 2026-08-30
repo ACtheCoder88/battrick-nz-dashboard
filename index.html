@@ -27,7 +27,12 @@ header.site { display: flex; gap: .6rem 1.2rem; align-items: baseline; flex-wrap
   padding: 1rem 1.4rem; border-bottom: 1px solid var(--line); background: var(--panel); }
 header.site h1 { font-size: 1.05rem; margin: 0; letter-spacing: .02em; }
 header.site h1 a { color: var(--text); }
-header.site nav a { margin-right: .9rem; color: var(--muted); }
+/* min-width:0 lets the nav shrink inside the header flex row, and the gap
+   replaces a trailing margin on the last link — together they were pushing the
+   page 65px wider than a narrow phone screen, so everything could slide
+   sideways and read as cut off at the right edge. */
+header.site nav { min-width: 0; display: flex; flex-wrap: wrap; gap: .2rem .9rem; }
+header.site nav a { color: var(--muted); }
 header.site nav a.here { color: var(--accent); }
 .eratoggle { margin-left: auto; display: inline-flex; border: 1px solid var(--line);
   border-radius: 6px; overflow: hidden; }
@@ -47,7 +52,11 @@ h2 small { color: var(--faint); font-weight: normal; }
 .tile .k { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 .filters { display: flex; gap: .6rem; flex-wrap: wrap; margin: .8rem 0 1rem; align-items: end; }
 .filters label { display: flex; flex-direction: column; gap: .2rem; font-size: .72rem; color: var(--muted); }
-.boards { display: grid; gap: 1.4rem; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+/* min() keeps auto-fit from forcing a 320px track inside a narrower container:
+   below ~370px the boards used to spill past the right edge of the screen,
+   taking the value column with them. */
+.boards { display: grid; gap: 1.4rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); }
 .board h3 { margin: 0 0 .3rem; font-size: 1rem; }
 .board .qual { font-size: .78rem; opacity: .65; margin: 0 0 .4rem; }
 /* Fixed layout so the name column is what absorbs the slack: with auto layout
@@ -60,9 +69,17 @@ h2 small { color: var(--faint); font-weight: normal; }
 .board td.rank { width: 2.3rem; opacity: .55; text-align: right; }
 .board td.who { overflow: hidden; }
 .board td.who .wholine { display: flex; align-items: baseline; gap: .32em; min-width: 0; }
-/* The surname never shrinks; the nation beside it is what gives way first. */
-.board td.who .nm { flex: 0 0 auto; white-space: nowrap; }
-.board .natflag { flex: 0 1 auto; min-width: 0; font-size: .78rem; opacity: .6;
+/* The name must not shrink at all: with any shrink factor it gives up its
+   ~0.03px share of the line's overflow, and that alone triggers its own
+   ellipsis ("Ranatunga" rendering as "Ranatun...") while clientWidth still
+   rounds to the full width. The nation carries a huge shrink factor instead,
+   so it collapses to nothing before the name loses a character. max-width is
+   the last resort for a genuinely over-long name — the team boards carry
+   "United States of America" — so it ellipsizes rather than spilling out of
+   the cell unmarked. Full text is on a title tooltip either way. */
+.board td.who .nm { flex: 0 0 auto; max-width: 100%; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.board .natflag { flex: 0 1000 auto; min-width: 0; font-size: .78rem; opacity: .6;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .board td.who .ctx { display: block; font-size: .76rem; opacity: .6;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -177,7 +194,8 @@ svg text { fill: var(--muted); font-size: 10px; }
   main { padding: .7rem .6rem; }
   header.site { padding: .6rem .6rem; gap: .5rem .8rem; }
   header.site h1 { font-size: .92rem; }
-  header.site nav a { margin-right: .55rem; font-size: .85rem; }
+  header.site nav { gap: .18rem .55rem; }
+  header.site nav a { font-size: .85rem; }
   body { font-size: 13px; }
   table { font-size: .8rem; }
   th, td { padding: .34rem .4rem; }
