@@ -50,13 +50,24 @@ h2 small { color: var(--faint); font-weight: normal; }
 .boards { display: grid; gap: 1.4rem; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
 .board h3 { margin: 0 0 .3rem; font-size: 1rem; }
 .board .qual { font-size: .78rem; opacity: .65; margin: 0 0 .4rem; }
-.board table { width: 100%; }
-.board td.rank { width: 1.6rem; opacity: .55; text-align: right; }
-.board td.who { max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.board .natflag { font-size: .78rem; opacity: .6; }
-.board td.val { font-weight: 600; text-align: right; white-space: nowrap; }
-.board td.ctx { text-align: right; font-size: .78rem; opacity: .6; white-space: nowrap; }
-.board tr.mine td.who { font-weight: 600; }
+/* Fixed layout so the name column is what absorbs the slack: with auto layout
+   the nowrap value/context columns claimed every pixel and the name cell
+   collapsed to its ellipsis, so every board read "G..", "R..", "F..". The
+   context now sits on a sub-line under the name, which leaves the top line
+   wide enough for the longest surnames on the board. */
+.board table { width: 100%; table-layout: fixed; }
+.board td { vertical-align: top; }
+.board td.rank { width: 2.3rem; opacity: .55; text-align: right; }
+.board td.who { overflow: hidden; }
+.board td.who .wholine { display: flex; align-items: baseline; gap: .32em; min-width: 0; }
+/* The surname never shrinks; the nation beside it is what gives way first. */
+.board td.who .nm { flex: 0 0 auto; white-space: nowrap; }
+.board .natflag { flex: 0 1 auto; min-width: 0; font-size: .78rem; opacity: .6;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board td.who .ctx { display: block; font-size: .76rem; opacity: .6;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board td.val { width: 5.2rem; font-weight: 600; text-align: right; white-space: nowrap; }
+.board tr.mine td.who .nm { font-weight: 600; }
 .covbar { display: flex; gap: 2px; align-items: flex-end; height: 34px; margin: .3rem 0 .1rem; }
 .covbar i { flex: 1; background: var(--accent); opacity: .75; min-height: 1px; }
 .covbar i.small { background: var(--accent); opacity: .38; }
@@ -2065,16 +2076,25 @@ Views.records = function (root) {
     const showN = (scope().params || {}).show || 15;
     const all = (rows || []).filter(r => !nationFilter || nationOf(r) === nationFilter);
     const rs = all.slice(0, showN);
-    if (!rs.length) tb.append(el("tr", {}, el("td", { colspan: 4, class: "faint" },
+    if (!rs.length) tb.append(el("tr", {}, el("td", { colspan: 3, class: "faint" },
       nationFilter ? `no ${nationFilter} player in the all-time top ${(rows || []).length}`
                    : "nothing qualifies")));
-    rs.forEach((r, i) => tb.append(el("tr", { class: highlightNZ && nationOf(r) === "New Zealand" ? "mine" : "" },
-      el("td", { class: "rank" }, String(i + 1)),
-      el("td", { class: "who" },
-        r.player_id ? el("a", { href: "#/player/" + r.player_id }, r.name) : (r.team || r.name || "–"),
-        r.player_id ? el("span", { class: "natflag" }, " · " + nationOf(r)) : ""),
-      el("td", { class: "val" }, o.value(r)),
-      el("td", { class: "ctx" }, o.context ? o.context(r) : ""))));
+    rs.forEach((r, i) => {
+      const who = r.player_id
+        ? el("a", { href: "#/player/" + r.player_id }, r.name)
+        : (r.team || r.name || "–");
+      const ctx = o.context ? o.context(r) : "";
+      tb.append(el("tr", { class: highlightNZ && nationOf(r) === "New Zealand" ? "mine" : "" },
+        el("td", { class: "rank" }, String(i + 1)),
+        el("td", { class: "who" },
+          el("span", { class: "wholine" },
+            el("span", { class: "nm", title: r.name || r.team || "" }, who),
+            r.player_id
+              ? el("span", { class: "natflag", title: nationOf(r) }, "· " + nationOf(r))
+              : ""),
+          ctx ? el("span", { class: "ctx", title: ctx }, ctx) : null),
+        el("td", { class: "val" }, o.value(r))));
+    });
     wrap.append(el("div", { class: "tablewrap" }, el("table", {}, tb)));
     return wrap;
   }
